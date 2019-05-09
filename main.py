@@ -76,7 +76,8 @@ def main():
                         "timestamp": timestamp,
                         "portfolio_value": portfolio_value,
                         "position_values": position_values,
-                        "positions_weights": positions_weights
+                        "positions_weights": positions_weights,
+                        "return": 100 * (portfolio_value - total_invested) / total_invested
                     })
 
                     for instr in instruments_to_trade:
