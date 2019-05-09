@@ -1,6 +1,7 @@
 import argparse, os, time, sys
 import pandas as pd
 from datetime import datetime, timezone, timedelta
+import pprint as pp
 
 class BacktestExchange:
     def __init__(self):
@@ -33,6 +34,8 @@ def main():
 
     total_invested = 0
 
+    events = []
+
     if strategy == "cost_averaging":
         invest_amount_per_instrument = invest_amount / len(instruments_to_trade)
         for i in range(backtest_period):
@@ -63,6 +66,19 @@ def main():
                     # for instr in instruments_to_trade:
                     #     price = dataframes[instr].loc[timestamp, 'open']
                     #     print(instr, positions[instr], positions[instr] * price)
+
+                    for instr in instruments_to_trade:
+                        positions_weights[instr] = position_values[instr] / portfolio_value
+
+                    events.append({
+                        "action": "rebalance",
+                        "epoch": i,
+                        "timestamp": timestamp,
+                        "portfolio_value": portfolio_value,
+                        "position_values": position_values,
+                        "positions_weights": positions_weights
+                    })
+
                     for instr in instruments_to_trade:
                         positions_weights[instr] = position_values[instr] / portfolio_value
                         if position_values[instr] > lowest_value:
@@ -71,10 +87,27 @@ def main():
                             qty_to_sell = instr_sell_amount / price
                             positions[instr] -= qty_to_sell
                             sell_amount += instr_sell_amount * (1 - fees)
+                            events.append({
+                                "action": "sell",
+                                "epoch": i,
+                                "timestamp": timestamp,
+                                "instrument": instr,
+                                "qty": qty_to_sell,
+                                "sell_amount": instr_sell_amount,
+                                "fee_amount": instr_sell_amount * fees
+                            })
                     # for instr in instruments_to_trade:
                     #     price = dataframes[instr].loc[timestamp, 'open']
                     #     print(instr, positions[instr], positions[instr] * price)
                     # print("sell_amount ", sell_amount)
+
+                events.append({
+                    "action": "invest",
+                    "epoch": i,
+                    "timestamp": timestamp,
+                    "invest_amount": invest_amount,
+                    "reinvest_amount": sell_amount
+                })
 
                 invest_amount_per_instrument = (invest_amount + sell_amount) / len(instruments_to_trade)
                 total_invested += invest_amount
@@ -82,6 +115,15 @@ def main():
                     price = dataframes[instr].loc[timestamp, 'open']
                     qty_to_buy = invest_amount_per_instrument * (1 - fees) / price
                     positions[instr] += qty_to_buy
+                    events.append({
+                        "action": "buy",
+                        "epoch": i,
+                        "timestamp": timestamp,
+                        "instrument": instr,
+                        "qty": qty_to_buy,
+                        "buy_amount": invest_amount_per_instrument * (1 - fees),
+                        "fee_amount": invest_amount_per_instrument * fees
+                    })
 
     print("total invested {}".format(total_invested))
     portfolio_value = 0
@@ -91,6 +133,7 @@ def main():
         portfolio_value += price * positions[instr]
     print("portfolio value {}".format(portfolio_value))
     print("return {} %".format(100 * (portfolio_value - total_invested) / total_invested))
+    pp.pprint(events)
 
 if __name__ == "__main__":
     main()
